@@ -26,7 +26,7 @@ do
 
 	#check file existance,not emptyness (zero - sized file)
 
-	if [ -e "$filePath" ] && [ -s "$filePath" ] 
+	if [ -e "$filePath" ] ||  [ -s "$filePath" ] 
 	then
 
 		#Debug Command echo "File located"
@@ -192,7 +192,7 @@ do
 : '
 
 	
-		#Debug Messages
+		#Debug Messages, uncomment block comments if needed
 		echo "Would you like to print partial information about factors? (Y) - (N)"
 		read ans
 
