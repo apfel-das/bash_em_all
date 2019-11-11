@@ -1,0 +1,223 @@
+#!/bin/bash
+
+clear
+
+
+: ' #Debug Commands
+	echo "Hi, $USER"
+	echo "Regr initialisation"
+'
+
+
+
+
+
+files=($@)
+
+
+
+
+
+for filePath in "${files[@]}"
+
+do
+
+
+
+	#check file existance,not emptyness (zero - sized file)
+
+	if [ -e "$filePath" ] && [ -s "$filePath" ] 
+	then
+
+		#Debug Command echo "File located"
+	
+	
+		#check whether read permission is on for the person executing the script,if not manually open the read bit (msb)
+
+		if [ !  -r "$filePath" ] 
+		then
+
+			echo "Unable to read file, file reading permission not enabled"
+			echo "Enable read permission for $filePath? (Y) or (N)"
+			read ans
+
+
+			if [ "$ans" = "Y" ] || [ "ans" = "y" ]
+			then
+					chmod 444 $filePath      							#enable read permission for everyone by a mask with 1's in respective read_bits
+			fi		
+		fi
+
+
+			#Count the lines of the file given,cat command can also be used here
+
+			result=($(wc -l $filePath)) 								#variable type casting will work,then interpreting result as an array
+			lineNum=${result[0]}
+
+	
+	else
+
+		echo "Unable to locate the File inside working dir"
+		exit 126
+	
+	fi
+
+
+	#line-wise read 
+
+	declare -a lines=()
+	i=0
+
+	while read -r tmpLines
+	do	
+	
+	
+	
+																	#printf 'Line content: %s' "$someLine" will also work
+																	#Debug Command: echo "Lines content: $tmpLines"
+		lines[i]=$tmpLines
+		let "i++"
+   
+
+	done < "$filePath"
+
+
+
+
+	declare -a xVar=()
+	declare -a yVar=()
+
+	
+
+
+
+	oIFS=$IFS   							 #keep value of IFS somewhere
+	IFS=':'	
+
+	for (( i = 0; i < "$lineNum"; i++ ))
+	do
+	
+			ind=0;
+	
+											#IFS changed but will be restored
+			read -ra ff <<< "${lines[i]}"
+			for j in "${ff[@]}"; 
+			do
+
+				if (( $ind % 2 ))
+				then
+			 
+			 
+			 		yVar[i]="$j"
+			 
+				else
+			
+			 
+			 		xVar[i]="$j"
+
+				fi
+					let "ind++"
+		
+	
+			done
+		
+
+	done
+
+
+
+	IFS=$oIFS 							#restore IFS 
+	
+
+		#Maths and boring vectors creation
+
+
+
+		#Sum of each Vectors, sum of multiplication, Square sum of xVector
+
+		xSum=0
+		xSqSum=0
+		for element in "${xVar[@]}"
+		do
+			xSum=$(echo  "$xSum + $element" | bc)
+			xSqSum=$(echo  "$xSqSum + $element * $element" | bc)
+		done
+
+
+
+
+		ySum=0
+		for element in "${yVar[@]}"
+		do
+
+			ySum=$(echo  "$ySum + $element" | bc)
+		
+		done
+
+
+		vectorSize=${#xVar[@]}
+		xySum=0
+
+		for ((i=0; i < "$vectorSize"; i++ ))
+		do
+				xySum=$(echo "${xVar[i]} * ${yVar[i]} +$xySum" | bc -l)
+
+		done
+
+		#Factors calculation
+
+
+		a=$(echo " scale=2; ( ( $vectorSize * $xySum ) - ( $xSum * $ySum ) ) / ( ( $vectorSize * $xSqSum ) - ( $xSum * $xSum ) ) "  | bc -l )
+		b=$(echo " scale=2; ( $ySum - $a * $xSum ) / $vectorSize " | bc -l)
+
+
+		afk=0;
+		Err=0;
+
+		for ((i=0; i < "$vectorSize"; i++))
+		do
+		
+				afk=$(echo " ( ${yVar[i]} - $a * ${xVar[i]} - $b ) " | bc -l )
+				
+				Err=$(echo " scale=2; ( ( $afk * $afk ) + $Err ) / 1 " | bc -l)   #upscale just for debug (scale=5 works well), remember to decrease when finished (should be scale=2)
+
+						
+		done
+
+
+
+
+		echo "FILE: $filePath, a= $a b= $b err= $Err" 							# >> regrResults : Just a trick to print results in a file.
+
+: '
+
+	
+		#Debug Messages
+		echo "Would you like to print partial information about factors? (Y) - (N)"
+		read ans
+
+	
+	if [ "$ans" == 'Y' ] || [ "$ans" == 'y' ]
+	then
+	
+		echo "File $filePath has $lineNum lines"
+		echo " yVector : ${xVar[@]}"
+		echo " xVector : ${yVar[@]}"
+	
+		echo
+		echo "sizeof(Vectors) : $vectorSize"
+		echo "Sum of x Vector : $xSum"
+		echo "Sum of y Vector : $ySum"
+		echo "Mult x[i] * y[i] : $xySum" 
+		echo "Sum of xVector squares  : $xSqSum"
+	fi
+	
+	'
+
+done
+
+
+
+exit 1
+
+

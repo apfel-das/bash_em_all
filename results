@@ -1,0 +1,221 @@
+#!/bin/bash
+
+filePath=$1
+
+
+
+
+
+if [ -e "$filePath" ] && [ -s "$filePath" ] 
+	then
+
+		#Debug Command echo "File located"
+	
+	
+		#check whether read permission is on for the person executing the script,if not manually open the read bit (msb)
+
+		if [ !  -r "$filePath" ] 
+		then
+
+			echo "Unable to read file, file reading permission not enabled"
+			echo "Enable read permission for $filePath? (Y) or (N)"
+			read ans
+
+
+			if [ "$ans" = "Y" ] || [ "ans" = "y" ]
+			then
+					chmod 444 $filePath      							#enable read permission for everyone by a mask with 1's in respective read_bits
+			fi		
+		fi
+
+
+			#Count the lines of the file given,cat command can also be used here
+
+			result=($(wc -l $filePath)) 								#variable type casting will work,then interpreting result as an array
+			fixtureNum=${result[0]}
+
+			#modify the given file to be properly accesible
+
+			touch tempFile.txt
+			chmod 600 tempFile.txt  #enable rw priviledges for author
+			cat $filePath | tr ' ' '_' > "tempFile.txt"  #concatinate white spaces and save on new one (Todo: Delete temporary file in the end)
+			filePath="tempFile.txt"
+
+
+	
+	else
+
+		echo "Unable to locate the File inside working dir"
+		exit 126
+	
+	fi
+
+	
+
+	declare -a fixtures=()
+	declare -a games=()
+	declare -a scores=()
+	declare -a teams=()
+	declare -a teamsFinal=()
+	declare -A points
+	declare -A goalConceded
+	declare -A goalScored=()
+
+	j=0
+
+	while IFS=:  read -ra tmpLines
+	do	
+	
+	
+		
+		#retrieve fixtures and score of each one respectivelly
+
+		fixtures[i]="${tmpLines[0]}"
+		scores[i]="${tmpLines[1]}"
+
+		#retrieve teams
+		oIFS=$IFS
+		IFS='-'
+		read -ra ll <<< "${fixtures[i]}"  
+		teams[j]="${ll[0]}"
+		let "j++"
+		teams[j]="${ll[1]}"
+		let "j++"
+
+
+		let "i++"
+
+		#restore IFS from inner loop change,outter is auto-retrieved in this syntax
+
+		IFS=$oIFS
+
+
+
+	done < "$filePath"
+
+
+
+	
+
+	
+
+
+
+	
+
+
+	teamsFinal=($(echo "${teams[@]}" | tr ' ' '\n' | sort -u  | tr '\n' ' ')) #sort and keep unique appearances of teams,create a catalogue of teams in file
+
+
+	oIFS=$IFS
+	IFS='-'
+	for (( i = 0; i < "$fixtureNum"; i++ ))
+	do
+
+		read -ra kk <<< "${fixtures[i]}"
+		teamA=${kk[0]}
+		teamB=${kk[1]}
+		
+
+
+
+		read -ra ll <<< "${scores[i]}"
+		scoreA=${ll[0]}
+		scoreB=${ll[1]}
+
+		#interprete variables in a way that helps determine points for each team
+		
+		let "goalScored[$teamA]=${goalScored[$teamA]} + $scoreA "
+	
+		let "goalConceded[$teamA]= ${goalConceded[$teamA]} + $scoreB "
+
+		 
+
+
+
+
+		let " goalScored[$teamB] = ${goalScored[$teamB]} + $scoreB "
+		let " goalConceded[$teamB] = ${goalConceded[$teamB]} + $scoreA"
+		
+		#create scoring table ( win -> 3 points, draw -> 1 point )
+
+		if [[ "$scoreA" -gt "$scoreB" ]]
+		then
+			
+			
+			let "points[$teamA] = ${points[$teamA]} + 3 "     #teamA won
+			let "points[$teamB] = ${points[$teamB]} + 0 "
+			
+		elif [[ "$scoreA" -eq  "$scoreB" ]]
+		then
+
+			let "points[$teamA] = ${points[$teamA]} + 1 "	 #draw,each team earns 1 point
+			let "points[$teamB] = ${points[$teamB]} + 1 "
+		
+		else
+
+
+			let "points[$teamB] = ${points[$teamB]} + 3 "   #teamB won
+			let "points[$teamA] = ${points[$teamA]} + 0 "   
+		
+		fi
+
+	
+
+	done
+
+
+	
+
+
+# Sort Teams based on points gained via a BubbleSort algorithm (Quickest but dirtiest way)  
+for((i = 0; i < ${#teamsFinal[@]}; i++)) 
+do
+      
+    for((j = 0; j < ${#teamsFinal[@]}-1; j++)) 
+    do
+
+      curr=${teamsFinal[j]}
+      next=${teamsFinal[j+1]}
+      
+
+        if (( ${points[$curr]} == ${points[$next]} )) && (( "${#curr}" > "${#next}" ))   #traverse if same points gained and curr.length()>next.length
+        then
+            # swap 
+            
+            temp=${teamsFinal[j]}
+            teamsFinal[j]=${teamsFinal[j+1]}   
+            teamsFinal[j+1]=$temp 
+        fi
+
+
+       	if (( ${points[$curr]} < ${points[$next]} ))									#traverse if unsorted- average case scenario
+        then
+            # swap 
+            
+            temp=${teamsFinal[j]}
+            teamsFinal[j]=${teamsFinal[j+1]}   
+            teamsFinal[j+1]=$temp 
+        fi
+        
+
+    done
+    
+done
+
+
+
+
+for (( i = 0; i <"${#teamsFinal[@]}"; i++ ))
+do
+		
+	team=${teamsFinal[i]}
+	
+	
+	printf '%d.\t%-10s\t%d\t%d-%d\n' $((i+1))  ${teamsFinal[i]} ${points[$team]} ${goalScored[$team]} ${goalConceded[$team]} | tr '_' ' ' #replace special character with space to print original names
+	
+
+done
+	
+rm "tempFile.txt" 													#delete temporary file
+
